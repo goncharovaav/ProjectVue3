@@ -139,6 +139,108 @@ Vue.component('modal-window', {
         }
     }
 });
+
+Vue.component('kanban-column', {
+    props: ['title', 'tasks', 'index'],
+    template: `
+        <div class="column">
+            <h2>{{ title }}</h2>
+            <task-card 
+                v-for="task in tasks" 
+                :key="task.id" 
+                :task="task"
+                :columnIndex="index"
+                @edit="editTask"
+                @delete="deleteTask"
+                @move="moveTask"
+            />
+            <button v-if="index === 0" class="add-task-btn" @click="openAddModal">
+                Добавить задачу
+            </button>
+            
+            <modal-window 
+                :show="showModal"
+                :title="modalTitle"
+                :task="editingTask"
+                @close="closeModal"
+                @save="saveTask"
+            />
+        </div>
+    `,
+    data() {
+        return {
+            showModal: false,
+            editingTask: null
+        };
+    },
+    computed: {
+        modalTitle() {
+            return this.editingTask ? 'Редактировать задачу' : 'Добавить задачу';
+        }
+    },
+    methods: {
+        openAddModal() {
+            this.editingTask = null;
+            this.showModal = true;
+        },
+        editTask(task) {
+            this.editingTask = { ...task };
+            this.showModal = true;
+        },
+        closeModal() {
+            this.showModal = false;
+            this.editingTask = null;
+        },
+        saveTask(taskData) {
+            if (!taskData.title) {
+                alert('Введите заголовок задачи');
+                return;
+            }
+
+            if (!taskData.deadline) {
+                alert('Выберите дедлайн');
+                return;
+            }
+
+            const deadline = new Date(taskData.deadline);
+            const now = new Date();
+            if (deadline <= now) {
+                alert('Дедлайн должен быть в будущем');
+                return;
+            }
+
+            if (this.editingTask) {
+                this.$emit('update-task', {
+                    ...taskData,
+                    id: this.editingTask.id,
+                    status: this.getStatus(),
+                    updatedAt: new Date().toISOString()
+                });
+            } else {
+                this.$emit('add-task', {
+                    ...taskData,
+                    id: Date.now(),
+                    createdAt: new Date().toISOString(),
+                    status: 'planned'
+                });
+            }
+
+            this.closeModal();
+        },
+        deleteTask(taskId) {
+            if (confirm('Вы уверены, что хотите удалить эту задачу?')) {
+                this.$emit('delete-task', taskId);
+            }
+        },
+        moveTask(data) {
+            this.$emit('move-task', data);
+        },
+        getStatus() {
+            const statuses = ['planned', 'in-progress', 'testing', 'completed'];
+            return statuses[this.index] || 'planned';
+        }
+    }
+});
 new Vue({
     el: '#app',
     template: '<kanban-board></kanban-board>'
