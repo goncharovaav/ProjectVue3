@@ -1,23 +1,43 @@
-Vue.component('kanban-board', {
+Vue.component('modal-window', {
+    props: ['show', 'title', 'task'],
     template: `
-        <div>
-            <h1>Kanban Board</h1>
-            <div class="board">
+        <div class="modal" v-if="show" @click.self="$emit('close')">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>{{ title }}</h3>
+                    <button class="modal-close" @click="$emit('close')">X</button>
+                </div>
+                <div class="modal-body">
+                    <input type="text" v-model="localTask.title" placeholder="Заголовок задачи">
+                    <textarea v-model="localTask.description" placeholder="Описание задачи"></textarea>
+                    <input type="datetime-local" v-model="localTask.deadline">
+                </div>
+                <div class="modal-footer">
+                    <button class="cancel" @click="$emit('close')">Отмена</button>
+                    <button class="save" @click="$emit('save', localTask)">Сохранить</button>
+                </div>
             </div>
         </div>
-    `
-});
-
-Vue.component('kanban-column', {
-    props: ['title', 'tasks', 'index'],
-    template: `
-        <div class="column">
-            <h2>{{ title }}</h2>
-            <button v-if="index === 0" class="add-task-btn" @click="$emit('add-click')">
-                Добавить задачу
-            </button>
-        </div>
-    `
+    `,
+    data() {
+        return {
+            localTask: {
+                title: '',
+                description: '',
+                deadline: ''
+            }
+        };
+    },
+    watch: {
+        task: {
+            handler(newVal) {
+                if (newVal) {
+                    this.localTask = { ...newVal };
+                }
+            },
+            immediate: true
+        }
+    }
 });
 
 Vue.component('task-card', {
@@ -94,48 +114,6 @@ Vue.component('task-card', {
                     reason: reason
                 });
             }
-        }
-    }
-});
-
-Vue.component('modal-window', {
-    props: ['show', 'title', 'task'],
-    template: `
-        <div class="modal" v-if="show" @click.self="$emit('close')">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>{{ title }}</h3>
-                    <button class="modal-close" @click="$emit('close')">X</button>
-                </div>
-                <div class="modal-body">
-                    <input type="text" v-model="localTask.title" placeholder="Заголовок задачи">
-                    <textarea v-model="localTask.description" placeholder="Описание задачи"></textarea>
-                    <input type="datetime-local" v-model="localTask.deadline">
-                </div>
-                <div class="modal-footer">
-                    <button class="cancel" @click="$emit('close')">Отмена</button>
-                    <button class="save" @click="$emit('save', localTask)">Сохранить</button>
-                </div>
-            </div>
-        </div>
-    `,
-    data() {
-        return {
-            localTask: {
-                title: '',
-                description: '',
-                deadline: ''
-            }
-        };
-    },
-    watch: {
-        task: {
-            handler(newVal) {
-                if (newVal) {
-                    this.localTask = { ...newVal };
-                }
-            },
-            immediate: true
         }
     }
 });
@@ -241,6 +219,115 @@ Vue.component('kanban-column', {
         }
     }
 });
+
+Vue.component('kanban-board', {
+    template: `
+        <div>
+            <h1>Kanban Board</h1>
+            <div class="board">
+                <kanban-column 
+                    title="Запланированные задачи"
+                    :tasks="plannedTasks"
+                    :index="0"
+                    @add-task="addTask"
+                    @update-task="updateTask"
+                    @delete-task="deleteTask"
+                    @move-task="moveTask"
+                />
+                
+                <kanban-column 
+                    title="Задачи в работе"
+                    :tasks="inProgressTasks"
+                    :index="1"
+                    @update-task="updateTask"
+                    @move-task="moveTask"
+                />
+                
+                <kanban-column 
+                    title="Тестирование"
+                    :tasks="testingTasks"
+                    :index="2"
+                    @update-task="updateTask"
+                    @move-task="moveTask"
+                />
+                
+                <kanban-column 
+                    title="Выполненные задачи"
+                    :tasks="completedTasks"
+                    :index="3"
+                />
+            </div>
+        </div>
+    `,
+    data() {
+        return {
+            tasks: []
+        };
+    },
+    computed: {
+        plannedTasks() {
+            return this.tasks.filter(t => t.status === 'planned');
+        },
+        inProgressTasks() {
+            return this.tasks.filter(t => t.status === 'in-progress');
+        },
+        testingTasks() {
+            return this.tasks.filter(t => t.status === 'testing');
+        },
+        completedTasks() {
+            return this.tasks.filter(t => t.status === 'completed');
+        }
+    },
+    mounted() {
+        const savedData = localStorage.getItem('kanbanTasks');
+        if (savedData) {
+            this.tasks = JSON.parse(savedData);
+        }
+    },
+    watch: {
+        tasks: {
+            handler() {
+                localStorage.setItem('kanbanTasks', JSON.stringify(this.tasks));
+            },
+            deep: true
+        }
+    },
+    methods: {
+        addTask(task) {
+            this.tasks.push(task);
+        },
+        updateTask(updatedTask) {
+            const index = this.tasks.findIndex(t => t.id === updatedTask.id);
+            if (index !== -1) {
+                this.tasks[index] = updatedTask;
+            }
+        },
+        deleteTask(taskId) {
+            this.tasks = this.tasks.filter(t => t.id !== taskId);
+        },
+        moveTask({ taskId, from, to, reason }) {
+            const taskIndex = this.tasks.findIndex(t => t.id === taskId);
+            if (taskIndex !== -1) {
+                const task = { ...this.tasks[taskIndex] };
+
+                if (to === 3) {
+                    const deadline = new Date(task.deadline);
+                    const now = new Date();
+                    task.isOverdue = deadline < now;
+                    task.status = 'completed';
+                } else if (to === 1) {
+                    task.status = 'in-progress';
+                } else if (to === 2) {
+                    task.status = 'testing';
+                }
+
+                this.tasks.splice(taskIndex, 1);
+                this.tasks.push(task);
+            }
+        }
+    }
+});
+
 new Vue({
     el: '#app',
     template: '<kanban-board></kanban-board>'
