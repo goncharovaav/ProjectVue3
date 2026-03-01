@@ -97,6 +97,48 @@ Vue.component('task-card', {
         }
     }
 });
+
+Vue.component('modal-window', {
+    props: ['show', 'title', 'task'],
+    template: `
+        <div class="modal" v-if="show" @click.self="$emit('close')">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>{{ title }}</h3>
+                    <button class="modal-close" @click="$emit('close')">X</button>
+                </div>
+                <div class="modal-body">
+                    <input type="text" v-model="localTask.title" placeholder="Заголовок задачи">
+                    <textarea v-model="localTask.description" placeholder="Описание задачи"></textarea>
+                    <input type="datetime-local" v-model="localTask.deadline">
+                </div>
+                <div class="modal-footer">
+                    <button class="cancel" @click="$emit('close')">Отмена</button>
+                    <button class="save" @click="$emit('save', localTask)">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    `,
+    data() {
+        return {
+            localTask: {
+                title: '',
+                description: '',
+                deadline: ''
+            }
+        };
+    },
+    watch: {
+        task: {
+            handler(newVal) {
+                if (newVal) {
+                    this.localTask = { ...newVal };
+                }
+            },
+            immediate: true
+        }
+    }
+});
 new Vue({
     el: '#app',
     template: '<kanban-board></kanban-board>'
